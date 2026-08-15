@@ -1,0 +1,13 @@
+backend/.env
+backend/venv/
+__pycache__/
+*.py[cod]
+.chroma/
+backend/.chroma/
+frontend/node_modules/
+frontend/.npm-cache/
+backend/data/
+backend/.venv/
+__pycache__/
+.pytest_cache/
+*.pyc

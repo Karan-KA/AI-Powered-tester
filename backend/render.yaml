@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ai-web-test-automation-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: singapore
+    plan: free
+    envVars:
+      - key: PLAYWRIGHT_HEADLESS
+        value: "true"
+      - key: MAX_RUN_SECONDS
+        value: "45"
+      - key: OLLAMA_BASE_URL
+        value: "http://127.0.0.1:11434"
