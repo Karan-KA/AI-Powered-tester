@@ -33,9 +33,22 @@ app.add_middleware(
 
 app.include_router(tests_router)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-REACT_DIST = PROJECT_ROOT / "frontend" / "dist"
-REACT_INDEX = REACT_DIST / "index.html"
+def resolve_react_index() -> Path:
+    candidates = [
+        Path(__file__).resolve().parents[2] / "frontend" / "dist" / "index.html",
+        Path(__file__).resolve().parents[1] / "frontend" / "dist" / "index.html",
+        Path(__file__).resolve().parents[0] / "frontend" / "dist" / "index.html",
+        Path("/app/frontend/dist/index.html"),
+        Path("frontend/dist/index.html"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+REACT_INDEX = resolve_react_index()
+REACT_DIST = REACT_INDEX.parent
 
 if (REACT_DIST / "assets").exists():
     app.mount("/assets", StaticFiles(directory=REACT_DIST / "assets"), name="react-assets")
@@ -51,17 +64,19 @@ def home():
 
 @app.get("/app")
 def chatbot_app():
-    if not REACT_INDEX.exists():
+    target_index = resolve_react_index()
+    if not target_index.exists():
         return {
-            "message": "React frontend file is missing.",
-            "expected_file": str(REACT_INDEX),
+            "message": "Frontend index file is missing.",
+            "expected_file": str(target_index),
         }
 
     return FileResponse(
-        REACT_INDEX,
+        target_index,
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
             "Pragma": "no-cache",
         },
     )
+
 
