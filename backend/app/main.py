@@ -46,7 +46,7 @@ if Path(settings.artifacts_dir).exists():
 
 @app.get("/")
 def home():
-    return {"message": f"{settings.app_name} backend is running", "app": "/app", "api": "/docs"}
+    return chatbot_app()
 
 
 @app.get("/app")
@@ -64,3 +64,4 @@ def chatbot_app():
             "Pragma": "no-cache",
         },
     )
+
