@@ -592,7 +592,10 @@ def _suite_media(case_label: str, target_url: str, page_context: dict) -> dict:
     domain = _domain_name(target_url).lower()
     if "youtube" in domain and _best_search_input(page_context):
         return _suite_search(case_label, target_url, page_context, open_result=True)
-    playable_selector = "video, audio, [aria-label*='play' i], button:has-text('Play'), [role='button']:has-text('Play')"
+    # Limit playback discovery to interactive controls. A generic aria-label
+    # selector also matches hidden containers such as "Video Player".
+    playable_selector = "video, audio, button[aria-label*='play' i], [role='button'][aria-label*='play' i], button:has-text('Play'), [role='button']:has-text('Play')"
+    playback_or_access_selector = "video, audio, button[aria-label*='pause' i], [role='button'][aria-label*='pause' i], button[aria-label*='play' i], [role='button'][aria-label*='play' i], button:has-text('Play'), a:has-text('Sign in'), button:has-text('Sign in'), [role='button']:has-text('Sign in')"
     return _case(
         f"{case_label} - media playback entry point",
         target_url,
@@ -603,7 +606,7 @@ def _suite_media(case_label: str, target_url: str, page_context: dict) -> dict:
             TestStep(action="screenshot", description="Capture the media entry point before interaction."),
             TestStep(action="click", selector=playable_selector, description="Activate the visible play control if it is available.", optional=True),
             TestStep(action="wait", value="1500", description="Wait for the player or page response."),
-            TestStep(action="assert_visible", selector="video, audio, [aria-label*='pause' i], [aria-label*='play' i], button:has-text('Play')", description="Verify the player remains visible or safely requires sign-in.", optional=True),
+            TestStep(action="assert_visible", selector=playback_or_access_selector, description="Verify the player remains visible or safely requires sign-in.", optional=True),
             TestStep(action="screenshot", description="Capture the media playback entry point."),
         ],
         "The website exposes a safe media playback entry point or shows that playback requires sign-in.",

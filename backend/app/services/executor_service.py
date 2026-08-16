@@ -325,11 +325,35 @@ def execute_steps(
                 headless=False if show_browser else headless,
                 slow_mo=450 if show_browser else 0,
             )
-            page = browser.new_page()
+            # A consistent context gives every target a normal desktop viewport
+            # while keeping each run isolated from prior users and test cases.
+            context = browser.new_context(
+                viewport={"width": 1440, "height": 900},
+                locale="en-US",
+                timezone_id="UTC",
+                color_scheme="light",
+            )
+            page = context.new_page()
             page.set_default_timeout(8000)
             page.set_default_navigation_timeout(25000)
             page.on("console", lambda msg: _console_log(logs, msg))
             page.on("pageerror", lambda exc: _log(logs, "pageerror", str(exc)))
+            access_restricted = {"detected": False}
+
+            def record_restricted_response(response):
+                try:
+                    request_type = response.request.resource_type
+                    if response.status in {401, 403} and not access_restricted["detected"]:
+                        access_restricted["detected"] = True
+                        _log(
+                            logs,
+                            "warning",
+                            f"Target access restriction detected ({response.status} {request_type}); protected controls may be unavailable.",
+                        )
+                except Exception:
+                    pass
+
+            page.on("response", record_restricted_response)
 
             for index, step in enumerate(steps, 1):
                 _log(logs, "step", f"{index}. {step.description}")
@@ -349,11 +373,12 @@ def execute_steps(
                         _dismiss_obstructions(page, logs)
                     elif action == "click" and selector:
                         _dismiss_obstructions(page, logs)
+                        timeout = 2500 if step.optional else 8000
                         try:
-                            page.locator(selector).first.click()
+                            page.locator(selector).first.click(timeout=timeout)
                         except (PlaywrightTimeoutError, PlaywrightError):
                             _dismiss_obstructions(page, logs)
-                            page.locator(selector).first.click()
+                            page.locator(selector).first.click(timeout=timeout)
                     elif action == "click" and any(
                         token in step.description.lower() for token in ("login", "sign in", "submit", "otp", "authenticate")
                     ):
@@ -381,7 +406,9 @@ def execute_steps(
                         else:
                             page.get_by_text(value, exact=False).first.wait_for()
                     elif action == "assert_visible" and selector:
-                        page.locator(selector).first.wait_for(state="visible")
+                        page.locator(selector).first.wait_for(
+                            state="visible", timeout=2500 if step.optional else 8000
+                        )
                     elif action == "assert_value" and selector:
                         actual_value = page.locator(selector).first.input_value()
                         if actual_value != value:
@@ -417,7 +444,8 @@ def execute_steps(
                         _log(logs, "warning", f"Skipped unsupported or incomplete action: {action}")
                 except (PlaywrightTimeoutError, PlaywrightError, AssertionError) as exc:
                     if step.optional or (selector and _optional(selector)):
-                        _log(logs, "warning", f"Optional step skipped: {exc}")
+                        reason = "target access is restricted" if access_restricted["detected"] else str(exc)
+                        _log(logs, "warning", f"Optional step skipped: {reason}")
                         status = "warning" if status == "passed" else status
                     else:
                         failed_shot = artifact_dir / f"failed-step-{index}.png"
@@ -432,6 +460,7 @@ def execute_steps(
                 status = "warning"
             if show_browser:
                 page.wait_for_timeout(1800)
+            context.close()
             browser.close()
 
     except Exception as exc:
