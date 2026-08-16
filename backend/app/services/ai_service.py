@@ -1358,7 +1358,11 @@ def generate_test_case(target_url: str, requirement: str) -> dict:
     requirement = requirement.strip()
     page_context = inspect_page(target_url)
 
-    if requirement and llm_status().get("available"):
+    # Ollama can be reachable while the configured model is not installed.
+    # In that state, skip slow failed model calls and generate the deterministic
+    # test case immediately.
+    llm = llm_status()
+    if requirement and llm.get("available") and llm.get("model_installed"):
         try:
             return _ai_generated_case(target_url, requirement, page_context)
         except (LLMUnavailable, ValueError, TypeError, KeyError):
