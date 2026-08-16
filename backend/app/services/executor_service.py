@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -305,10 +306,23 @@ def execute_steps(
 
     artifact_dir = _artifact_dir(run_id)
 
+    # Render/Docker containers do not have an X server. A client can request a
+    # visible browser for local debugging, but never at the cost of a failed
+    # production run.
+    display_available = os.name == "nt" or bool(os.getenv("DISPLAY"))
+    headless = settings.playwright_headless or not display_available
+    if show_browser and not display_available:
+        _log(
+            logs,
+            "warning",
+            "Visible browser mode is unavailable in this deployment; running headlessly instead.",
+        )
+        show_browser = False
+
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
-                headless=False if show_browser else settings.playwright_headless,
+                headless=False if show_browser else headless,
                 slow_mo=450 if show_browser else 0,
             )
             page = browser.new_page()
